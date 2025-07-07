@@ -47,6 +47,15 @@ public interface ScoutingConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+			keyName = "imps",
+			name = "Overworld Impling Events",
+			description = "Send Impling events to server (Does not report Puro Puro Implings)",
+			position = 2,
+			section = eventsSection
+	)
+	default boolean impEventsEnabled() { return false; }
+
 	@ConfigSection(
 			name = "Debug",
 			description = "Extra settings for advanced users",
@@ -66,5 +75,4 @@ public interface ScoutingConfig extends Config
 	{
 		return "https://g98c6e9efd32fb1-scouting.adb.us-ashburn-1.oraclecloudapps.com/ords/scouting/calls/";
 	}
-
 }

@@ -21,7 +21,8 @@ public enum SupportedEventsEnum {
     LEPRECHAUN,
     ROOTS,
     SAPLING,
-    FLOWERS
+    FLOWERS,
+    IMP
     ;
 
     private static final Map<Integer, SupportedEventsEnum> npcIdToEventMap;
@@ -85,6 +86,21 @@ public enum SupportedEventsEnum {
         npcIdToEventMap.put(NpcID.FLOWERING_BUSH_WHITE , FLOWERS);
         npcIdToEventMap.put(NpcID.FLOWERING_BUSH_GREEN, FLOWERS);
         npcIdToEventMap.put(NpcID.FLOWERING_BUSH_BLUE, FLOWERS);
+
+        //Add support for implings minus puro puro and the long list of IDs for crystal implings
+        //Not sure what all the variations of crystal implings are about
+        npcIdToEventMap.put(NpcID.BABY_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.YOUNG_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.GOURMET_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.EARTH_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.ESSENCE_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.ECLECTIC_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.NATURE_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.MAGPIE_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.NINJA_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.CRYSTAL_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.DRAGON_IMPLING, IMP);
+        npcIdToEventMap.put(NpcID.LUCKY_IMPLING, IMP);
 
         objectIdToEventMap.put(ObjectID.TREE_ROOTS, ROOTS);
         objectIdToEventMap.put(ObjectID.ANIMAINFUSED_TREE_ROOTS, ROOTS);

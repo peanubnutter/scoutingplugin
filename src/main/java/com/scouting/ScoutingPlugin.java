@@ -117,6 +117,9 @@ public class ScoutingPlugin extends Plugin
 			return config.forestryEventsEnabled();
 		}
 
+		if (eventType == SupportedEventsEnum.IMP){
+			return config.impEventsEnabled();
+		}
 		// Future event types go here.
 
 		return false;
