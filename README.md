@@ -7,5 +7,5 @@ connection to the server and that specific event type. No additional effort is r
 
 Make sure to enable each event type in the plugin settings if you want to contribute!
 
-- For now, we only support scouting for a few Forestry events.
+- Right now, we support Forestry events and special Sailing Shoals.
 - Many other events (implings, shooting stars, etc.) may be added in the future!

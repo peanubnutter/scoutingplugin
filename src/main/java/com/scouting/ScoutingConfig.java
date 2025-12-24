@@ -5,9 +5,15 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 
-@ConfigGroup("event-scouting")
+import static com.scouting.ScoutingConfig.SCOUTING_CONFIG_GROUP;
+
+@ConfigGroup(SCOUTING_CONFIG_GROUP)
 public interface ScoutingConfig extends Config
 {
+	String SCOUTING_CONFIG_GROUP = "event-scouting";
+	String SCOUTING_CONFIG_VERSION_KEY = "event_scouting_version";
+
+	/////////////////// Overall Info / settings
 
 	@ConfigSection(
 			name = "Info",
@@ -28,6 +34,20 @@ public interface ScoutingConfig extends Config
 		return "https://discord.gg/loghunters";
 	}
 
+	@ConfigItem(
+			keyName = "showPluginUpdates",
+			name = "Show plugin update message",
+			description = "On first login after a plugin update, show an update message in chat.",
+			position = 1,
+			section = infoSection
+	)
+	default boolean showPluginUpdates()
+	{
+		return true;
+	}
+
+	/////////////////// Event settings
+
 	@ConfigSection(
 			name = "Events",
 			description = "Which events to scout for",
@@ -39,13 +59,27 @@ public interface ScoutingConfig extends Config
 			keyName = "forestry",
 			name = "Forestry Events",
 			description = "Send Forestry events to server",
-			position = 1,
+			position = 0,
 			section = eventsSection
 	)
 	default boolean forestryEventsEnabled()
 	{
 		return true;
 	}
+
+	@ConfigItem(
+			keyName = "shoal",
+			name = "Sailing Shoals",
+			description = "Send special Sailing Shoals (boosted drop / catch rates) events to server",
+			position = 1,
+			section = eventsSection
+	)
+	default boolean shoalEventsEnabled()
+	{
+		return true;
+	}
+
+	/////////////////// Debug Info / settings
 
 	@ConfigSection(
 			name = "Debug",
@@ -66,5 +100,13 @@ public interface ScoutingConfig extends Config
 	{
 		return "https://g98c6e9efd32fb1-scouting.adb.us-ashburn-1.oraclecloudapps.com/ords/scouting/calls/";
 	}
+
+	@ConfigItem(
+			keyName = SCOUTING_CONFIG_VERSION_KEY,
+			name = "Event Scouting plugin version",
+			description = "Version of the plugin for update message",
+			section = debugSection,
+			position = 1
+	) default String getVersion() { return ""; }
 
 }

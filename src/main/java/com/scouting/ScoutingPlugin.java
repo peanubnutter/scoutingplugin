@@ -1,5 +1,6 @@
 package com.scouting;
 
+import com.google.common.collect.ImmutableList;
 import com.google.inject.Provides;
 import javax.inject.Inject;
 
@@ -10,7 +11,10 @@ import net.runelite.api.*;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameObjectSpawned;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.NpcSpawned;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -37,16 +41,71 @@ public class ScoutingPlugin extends Plugin
 	@Inject
 	private ScoutingWebManager webManager;
 
+	@Inject
+	private ConfigManager configManager;
+
+	@Inject
+	private ChatMessageManager chatMessageManager;
+
 	@Getter(AccessLevel.PACKAGE)
 	private List<EventData> eventsToUpload = new ArrayList<>();
 
 	protected static String postEventsEndpoint =
 			"https://g98c6e9efd32fb1-scouting.adb.us-ashburn-1.oraclecloudapps.com/ords/scouting/calls/";
 
+	// Make sure to update this version to show the plugin message below.
+	private final String pluginVersion = "v1.0.1";
+	private final String pluginMessage = "<colHIGHLIGHT>Event Scouting " + pluginVersion + ":<br>" +
+			"<colHIGHLIGHT>* Added special Sailing Shoals tracking<br>" +
+			"<colHIGHLIGHT>* Plugin update messages (can be disabled)<br>";
+
 	// Every X seconds, upload any events found since the last check
 	private static final int UPLOAD_INTERVAL_SECONDS = 3;
 
 	List<EventData> recentEvents = new ArrayList<>();
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged gameStateChanged) {
+		if (!isValidWorldType()) {
+			return;
+		}
+		if (gameStateChanged.getGameState() != GameState.LOGGED_IN) {
+			return;
+		};
+
+		// Send message about plugin updates one time
+		if (!config.getVersion().equals(pluginVersion)) {
+			configManager.setConfiguration(
+					ScoutingConfig.SCOUTING_CONFIG_GROUP,
+					ScoutingConfig.SCOUTING_CONFIG_VERSION_KEY,
+					pluginVersion);
+			if (config.showPluginUpdates()) {
+				chatMessageManager.queue(QueuedMessage.builder()
+						.type(ChatMessageType.CONSOLE)
+						.runeLiteFormattedMessage(pluginMessage)
+						.build()
+				);
+			}
+		}
+	}
+
+	private boolean isValidWorldType() {
+		List<WorldType> invalidTypes = ImmutableList.of(
+				WorldType.DEADMAN,
+				WorldType.NOSAVE_MODE,
+				WorldType.SEASONAL,
+				WorldType.TOURNAMENT_WORLD
+		);
+
+		for (WorldType worldType : invalidTypes) {
+			if (client.getWorldType().contains(worldType)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 
 	@Subscribe
 	public void onGameObjectSpawned(final GameObjectSpawned event) {
@@ -115,6 +174,13 @@ public class ScoutingPlugin extends Plugin
 				|| eventType == SupportedEventsEnum.FLOWERS
 		) {
 			return config.forestryEventsEnabled();
+		}
+
+		if (eventType == SupportedEventsEnum.SHIMMERING_SHOAL
+			|| eventType == SupportedEventsEnum.GLISTENING_SHOAL
+			|| eventType == SupportedEventsEnum.VIBRANT_SHOAL
+		) {
+			return config.shoalEventsEnabled();
 		}
 
 		// Future event types go here.

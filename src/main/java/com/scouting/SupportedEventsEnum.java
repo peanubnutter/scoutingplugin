@@ -21,7 +21,10 @@ public enum SupportedEventsEnum {
     LEPRECHAUN,
     ROOTS,
     SAPLING,
-    FLOWERS
+    FLOWERS,
+    SHIMMERING_SHOAL,
+    GLISTENING_SHOAL,
+    VIBRANT_SHOAL
     ;
 
     private static final Map<Integer, SupportedEventsEnum> npcIdToEventMap;
@@ -102,6 +105,10 @@ public enum SupportedEventsEnum {
         objectIdToEventMap.put(ObjectID.WILD_MUSHROOMS_47497, SAPLING);
         objectIdToEventMap.put(ObjectID.WILD_MUSHROOMS_47498, SAPLING);
         objectIdToEventMap.put(ObjectID.SPLINTERED_BARK, SAPLING);
+
+        objectIdToEventMap.put(ObjectID.SHIMMERING_SHOAL, SHIMMERING_SHOAL);
+        objectIdToEventMap.put(ObjectID.GLISTENING_SHOAL, GLISTENING_SHOAL);
+        objectIdToEventMap.put(ObjectID.VIBRANT_SHOAL, VIBRANT_SHOAL);
     }
 
     public static SupportedEventsEnum findByNpcId(int npcId) {
