@@ -1,5 +1,6 @@
 package com.scouting.pathfinder;
 
+import com.scouting.EventData;
 import com.scouting.pathfinder.RelayClient.Call;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,18 +19,13 @@ import lombok.Setter;
  */
 class EntTracker
 {
-	/**
-	 * Ents are kept for a second lifetime after they end, so a late report from inside one still
-	 * lands there instead of passing for a new ent at the same tree. The relay sends this much history.
-	 */
-	private static final int RETAIN_SECONDS = 2 * Ent.LIFETIME_SECONDS;
 
 	private final List<Ent> ents = new ArrayList<>();
 
 	/** Feed in a snapshot. Returns the ents seen for the first time that are still running. */
 	List<Ent> accept(Collection<Call> calls, long now)
 	{
-		ents.removeIf(e -> now - e.getFirstSeen() > RETAIN_SECONDS);
+		ents.removeIf(e -> now - e.getFirstSeen() > EventData.EVENT_DEDUPE_DURATION);
 
 		List<Call> ordered = new ArrayList<>(calls);
 		ordered.sort(Comparator.comparingLong(Call::getDiscoveredTime));
@@ -75,9 +71,6 @@ class EntTracker
 		/** Stated outright on the wiki. */
 		private static final int LIFETIME_SECONDS = 120;
 
-		/** The Event Scouting plugin's own dedupe distance. */
-		private static final int MATCH_RADIUS_TILES = 20;
-
 		private final int world;
 		private final int plane;
 
@@ -112,8 +105,8 @@ class EntTracker
 			return world == call.getWorld()
 				&& plane == call.getPlane()
 				&& Math.abs(call.getDiscoveredTime() - firstSeen) <= LIFETIME_SECONDS
-				&& Math.abs(call.getXCoord() - getCentreX()) <= MATCH_RADIUS_TILES
-				&& Math.abs(call.getYCoord() - getCentreY()) <= MATCH_RADIUS_TILES;
+				&& Math.abs(call.getXCoord() - getCentreX()) <= EventData.EVENT_DEDUPE_DISTANCE
+				&& Math.abs(call.getYCoord() - getCentreY()) <= EventData.EVENT_DEDUPE_DISTANCE;
 		}
 
 		/** Each sighting is where a scout saw an entling, so the average lands among them. */

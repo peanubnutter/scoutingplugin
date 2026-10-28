@@ -41,7 +41,7 @@ class EntPathfinderOverlay extends OverlayPanel
 
 		List<Ent> live = pathfinder.getLiveEnts();
 		// A debug aid, off by default: to most players a connection line is noise.
-		boolean offline = config.entRelayStatus() && pathfinder.isRelayOffline();
+		boolean offline = config.warnOnRelayDisconnect() && pathfinder.isRelayOffline();
 		if (live.isEmpty() && !offline)
 		{
 			return null;

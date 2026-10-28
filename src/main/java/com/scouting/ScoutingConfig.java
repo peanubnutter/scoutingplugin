@@ -129,8 +129,8 @@ public interface ScoutingConfig extends Config
 	@ConfigItem(
 			keyName = "entIgnoreSunbleak",
 			name = "Ignore Sunbleak Island",
-			description = "Skip ents on Sunbleak Island, which needs 72 Sailing and an adamant helm to reach, "
-					+ "docked with a greater teleport focus. It is the less ideal location, due to the large number of woodcutters",
+			description = "Skip ents on Sunbleak Island, which requires 72 Sailing, adamant helm,"
+					+ " and greater teleport focus. Very crowded.",
 			position = 3,
 			section = entPathfindingSection
 	)
@@ -142,7 +142,7 @@ public interface ScoutingConfig extends Config
 	@ConfigItem(
 			keyName = "entIgnoreDrumstickIsle",
 			name = "Ignore Drumstick Isle",
-			description = "Skip ents on Drumstick Isle, which needs 79 Sailing and an adamant keel to reach",
+			description = "Skip ents on Drumstick Isle, which requires 79 Sailing and an adamant keel",
 			position = 4,
 			section = entPathfindingSection
 	)
@@ -194,13 +194,13 @@ public interface ScoutingConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "entRelayStatus",
-			name = "Show ent relay status",
-			description = "Add a line to the ent overlay while the ent relay is reconnecting",
+			keyName = "warnOnRelayDisconnect",
+			name = "Warn when relay disconnects",
+			description = "Add a warning to the ent overlay while the ent relay is disconnected",
 			position = 3,
 			section = debugSection
 	)
-	default boolean entRelayStatus()
+	default boolean warnOnRelayDisconnect()
 	{
 		return false;
 	}

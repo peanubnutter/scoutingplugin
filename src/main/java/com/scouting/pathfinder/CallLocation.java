@@ -135,8 +135,10 @@ enum CallLocation
 
 		for (CallLocation location : values())
 		{
-			// Chebyshev distance, as the game measures it.
-			int distance = Math.max(Math.abs(x - location.centreX), Math.abs(y - location.centreY));
+			// Game measures Chebyshev distance, but Euclidean distance is still more intuitive for "nearest call location".
+			double dx = x - location.centreX;
+			double dy = y - location.centreY;
+			int distance = (int) Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2));
 			if (distance <= location.radiusTiles && distance < bestDistance)
 			{
 				best = location;
