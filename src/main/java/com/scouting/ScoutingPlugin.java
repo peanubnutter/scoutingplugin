@@ -2,6 +2,7 @@ package com.scouting;
 
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Provides;
+import com.scouting.pathfinder.EntPathfinder;
 import javax.inject.Inject;
 
 import lombok.AccessLevel;
@@ -17,6 +18,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.task.Schedule;
@@ -47,6 +49,9 @@ public class ScoutingPlugin extends Plugin
 	@Inject
 	private ChatMessageManager chatMessageManager;
 
+	@Inject
+	private EntPathfinder entPathfinder;
+
 	@Getter(AccessLevel.PACKAGE)
 	private List<EventData> eventsToUpload = new ArrayList<>();
 
@@ -63,6 +68,28 @@ public class ScoutingPlugin extends Plugin
 	private static final int UPLOAD_INTERVAL_SECONDS = 3;
 
 	List<EventData> recentEvents = new ArrayList<>();
+
+	@Override
+	protected void startUp()
+	{
+		entPathfinder.setEnabled(config.entPathfinderEnabled());
+	}
+
+	@Override
+	protected void shutDown()
+	{
+		entPathfinder.setEnabled(false);
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals(ScoutingConfig.SCOUTING_CONFIG_GROUP)
+			&& event.getKey().equals(ScoutingConfig.ENT_PATHFINDER_KEY))
+		{
+			entPathfinder.setEnabled(config.entPathfinderEnabled());
+		}
+	}
 
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged) {
