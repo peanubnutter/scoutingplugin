@@ -16,6 +16,7 @@ public interface ScoutingConfig extends Config
 	String ENT_PATHFINDER_KEY = "entPathfinder";
 	String ENT_NOTIFY_KEY = "entNotify";
 	String ENT_OVERLAY_KEY = "entShowOverlay";
+	String ENT_MARK_TARGET_KEY = "entMarkTarget";
 
 	/////////////////// Overall Info / settings
 
@@ -86,11 +87,11 @@ public interface ScoutingConfig extends Config
 	/////////////////// Ent Pathfinding
 
 	@ConfigSection(
-			name = "Ent Pathfinding",
-			description = "Route to ents called on world 444 with the Shortest Path plugin",
-			position = 2
+		name = "Ent Scout Tracking",
+		description = "Track ent locations reported by other players, with optional pathfinding and notifications",
+		position = 2
 	)
-	String entPathfindingSection = "Ent Pathfinding section";
+	String entScoutTrackingSection = "Ent Scout Tracking";
 
 	@ConfigItem(
 			keyName = ENT_PATHFINDER_KEY,
@@ -98,9 +99,45 @@ public interface ScoutingConfig extends Config
 			description = "On world 444, ask the Shortest Path plugin to route to each called ent in turn, oldest first.",
 			warning = "This will only work if you have the 'Shortest Path' plugin installed and enabled.",
 			position = 0,
-			section = entPathfindingSection
+			section = entScoutTrackingSection
 	)
 	default boolean entPathfinderEnabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = ENT_OVERLAY_KEY,
+		name = "Enable overlay",
+		description = "List called ents and their time left on screen",
+		position = 1,
+		section = entScoutTrackingSection
+	)
+	default boolean entShowOverlay()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "entQuickTele",
+		name = "Show quick tele",
+		description = "Show the quick teleport under each ent in the overlay",
+		position = 2,
+		section = entScoutTrackingSection
+	)
+	default boolean entQuickTele()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = ENT_MARK_TARGET_KEY,
+		name = "Mark current ent call",
+		description = "Show a hint arrow and a world map marker at the current ent call",
+		position = 3,
+		section = entScoutTrackingSection
+	)
+	default boolean entMarkTarget()
 	{
 		return false;
 	}
@@ -109,8 +146,8 @@ public interface ScoutingConfig extends Config
 			keyName = ENT_NOTIFY_KEY,
 			name = "Notify on ent call",
 			description = "Send a notification when a new ent is called",
-			position = 1,
-			section = entPathfindingSection
+			position = 4,
+			section = entScoutTrackingSection
 	)
 	default Notification entNotify()
 	{
@@ -118,13 +155,37 @@ public interface ScoutingConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = ENT_OVERLAY_KEY,
-			name = "Enable overlay",
-			description = "List called ents and their time left on screen",
-			position = 2,
-			section = entPathfindingSection
+		keyName = "entCalloutsEnabled",
+		name = "Enable chat callouts",
+		description = "Recognize ent callouts (Location ent) in Friends Chat",
+		position = 5,
+		section = entScoutTrackingSection
 	)
-	default boolean entShowOverlay()
+	default boolean entCalloutsEnabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "entCallEndingsEnabled",
+		name = "Enable chat call endings",
+		description = "Recognize call endings (Location D) in Friends Chat",
+		position = 6,
+		section = entScoutTrackingSection
+	)
+	default boolean entCallEndingsEnabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "entIgnoreQuestLocked",
+		name = "Ignore quest-locked locations",
+		description = "Skip ents at locations that need a quest you haven't completed",
+		position = 7,
+		section = entScoutTrackingSection
+	)
+	default boolean entIgnoreQuestLocked()
 	{
 		return true;
 	}
@@ -134,8 +195,8 @@ public interface ScoutingConfig extends Config
 			name = "Ignore Sunbleak Island",
 			description = "Skip ents on Sunbleak Island, which requires 72 Sailing, adamant helm,"
 					+ " and greater teleport focus. Very crowded.",
-			position = 3,
-			section = entPathfindingSection
+			position = 8,
+			section = entScoutTrackingSection
 	)
 	default boolean entIgnoreSunbleak()
 	{
@@ -146,8 +207,8 @@ public interface ScoutingConfig extends Config
 			keyName = "entIgnoreDrumstickIsle",
 			name = "Ignore Drumstick Isle",
 			description = "Skip ents on Drumstick Isle, which requires 79 Sailing and an adamant keel",
-			position = 4,
-			section = entPathfindingSection
+			position = 9,
+			section = entScoutTrackingSection
 	)
 	default boolean entIgnoreDrumstickIsle()
 	{

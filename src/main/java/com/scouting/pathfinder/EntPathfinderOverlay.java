@@ -7,9 +7,13 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.util.List;
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY;
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
+import static net.runelite.client.ui.overlay.OverlayManager.OPTION_CONFIGURE;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
+import net.runelite.client.ui.overlay.components.TitleComponent;
 
 /**
  * Ents not yet reached, oldest first: place on the left, time left on the right. The first line,
@@ -29,6 +33,18 @@ class EntPathfinderOverlay extends OverlayPanel
 		this.config = config;
 		setPosition(OverlayPosition.TOP_LEFT);
 		panelComponent.setPreferredSize(new Dimension(WIDTH, 0));
+		setPriority(PRIORITY_LOW);
+		addMenuEntry(RUNELITE_OVERLAY_CONFIG, OPTION_CONFIGURE, "Event Scouting");
+	}
+
+	void addSkipEntry(Ent ent)
+	{
+		addMenuEntry(RUNELITE_OVERLAY, "Skip", ent.getLabel(), e -> pathfinder.skip(ent));
+	}
+
+	void removeSkipEntry(Ent ent)
+	{
+		removeMenuEntry(RUNELITE_OVERLAY, "Skip", ent.getLabel());
 	}
 
 	@Override
@@ -47,9 +63,9 @@ class EntPathfinderOverlay extends OverlayPanel
 			return null;
 		}
 
-		panelComponent.getChildren().add(LineComponent.builder()
-			.left("Event Scouting")
-			.leftColor(Color.WHITE)
+		panelComponent.getChildren().add(TitleComponent.builder()
+			.text("Event Scouting")
+			.color(Color.WHITE)
 			.build());
 
 		if (offline)
@@ -67,11 +83,19 @@ class EntPathfinderOverlay extends OverlayPanel
 		{
 			long remaining = ent.secondsRemaining(now);
 			panelComponent.getChildren().add(LineComponent.builder()
-				.left(ent.getPlaceName())
+				.left(ent.getLabel())
 				.leftColor(ent == live.get(0) ? Color.WHITE : Color.LIGHT_GRAY)
 				.right("(" + remaining + "s)")
 				.rightColor(remaining <= 20 ? Color.RED : remaining <= 45 ? Color.ORANGE : Color.GREEN)
 				.build());
+
+			if (config.entQuickTele() && ent.getLocation() != null)
+			{
+				panelComponent.getChildren().add(LineComponent.builder()
+					.left(ent.getLocation().getQuickTele())
+					.leftColor(Color.GRAY)
+					.build());
+			}
 		}
 
 		return super.render(graphics);

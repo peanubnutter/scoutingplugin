@@ -80,6 +80,9 @@ class EntTracker
 		/** From the first sighting only, so the name never drifts as more reports move the centre. */
 		private final CallLocation location;
 
+		/** Fixed at the first sighting only, so it can key a menu entry. */
+		private final String label;
+
 		@Getter(AccessLevel.NONE)
 		private final Set<Call> sightings = new HashSet<>();
 
@@ -93,6 +96,9 @@ class EntTracker
 			this.plane = seed.getPlane();
 			this.firstSeen = seed.getDiscoveredTime();
 			this.location = CallLocation.nearest(seed.getXCoord(), seed.getYCoord());
+			this.label = location == null
+				? "Unnamed location (" + seed.getXCoord() + ", " + seed.getYCoord() + ")"
+				: location.getCallout();
 			sightings.add(seed);
 		}
 
@@ -118,11 +124,6 @@ class EntTracker
 		int getCentreY()
 		{
 			return (int) Math.round(sightings.stream().mapToInt(Call::getYCoord).average().orElse(0));
-		}
-
-		String getPlaceName()
-		{
-			return location == null ? "Friendly ent" : location.getDisplayName();
 		}
 
 		long secondsRemaining(long now)

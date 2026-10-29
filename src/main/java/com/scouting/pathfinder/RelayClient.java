@@ -88,6 +88,7 @@ class RelayClient
 			return;
 		}
 
+		log.debug("Disconnecting from ent relay");
 		closeCurrent();
 		this.url = url;
 		failedAttempts = 0;
@@ -129,6 +130,7 @@ class RelayClient
 	{
 		connectedAtMillis = 0;
 		status = Status.CONNECTING;
+		log.debug("Connecting to ent relay: {}", url);
 
 		try
 		{
@@ -162,6 +164,7 @@ class RelayClient
 		{
 			connectedAtMillis = System.currentTimeMillis();
 			status = Status.CONNECTED;
+			log.debug("Connected to ent relay");
 		}
 	}
 

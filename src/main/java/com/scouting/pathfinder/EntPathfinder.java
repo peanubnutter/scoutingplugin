@@ -7,25 +7,37 @@ import com.scouting.pathfinder.EntTracker.Ent;
 import com.scouting.pathfinder.RelayClient.Call;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginMessage;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
+import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import okhttp3.OkHttpClient;
 
 /**
@@ -55,6 +67,21 @@ public class EntPathfinder
 	private static final String ENT = "ENT";
 	private static final String SHORTEST_PATH = "shortestpath";
 
+	private static final String ENT_DONE = "d(?:ead|one|oa)?[0-5]?|fake";
+
+	private static final Pattern ENT_COMPLETED_PATTERN = Pattern.compile(
+		"^(?:(?<before>.+?)\\s+(?:" + ENT_DONE + ")"
+			+ "|(?:" + ENT_DONE + ")\\s+(?<after>.+))$",
+		Pattern.CASE_INSENSITIVE);
+
+	private static final String ENT_SUFFIX = "(?:\\s+(?:p|plugin|l|late|again|solo|duo|stall|spam))?";
+
+	private static final Pattern ENT_CALL_REGEX = Pattern.compile(
+		"^(?!.*\\b(?:" + ENT_DONE + "|branch(?:es)?)\\b)"
+			+ "(?:(?<before>.+?)\\s+ents?" + ENT_SUFFIX
+			+ "|ents?\\s+(?<after>.+?)" + ENT_SUFFIX + ")$",
+		Pattern.CASE_INSENSITIVE);
+
 	private final ScoutingConfig config;
 	private final EntPathfinderOverlay overlay;
 
@@ -79,9 +106,19 @@ public class EntPathfinder
 	@Inject
 	private OverlayManager overlayManager;
 
+	@Inject
+	private ItemManager itemManager;
+
+	@Inject
+	private WorldMapPointManager worldMapPointManager;
+
 	/** Used instead of {@code @Schedule}, which stalls while the client is minimised. */
 	@Inject
 	private ScheduledExecutorService executor;
+
+	@Inject
+	@Named("developerMode")
+	private boolean developerMode;
 
 	private volatile RelayClient relay;
 	private volatile boolean running;
@@ -92,8 +129,12 @@ public class EntPathfinder
 	private final EntTracker tracker = new EntTracker();
 	/** Running ents not yet reached, oldest first. The path points at the first. */
 	private List<Ent> live = Collections.emptyList();
-	private Ent target;
 	private boolean pathIsOurs;
+	/** The last point we pointed the hint arrow at, to tell our arrow from another source's. */
+	private WorldPoint arrowPoint;
+	/** The world map marker for the current target, and the point it sits on. */
+	private WorldMapPoint mapPoint;
+	private WorldPoint mapTarget;
 	/** When the player logged in on the forestry world, by the relay's clock; 0 while not logged in there. */
 	private long loggedInSince;
 
@@ -141,18 +182,49 @@ public class EntPathfinder
 		// The state, and Shortest Path, belong to the client thread.
 		clientThread.invoke(() ->
 		{
+			for (Ent ent : live)
+			{
+				overlay.removeSkipEntry(ent);
+			}
 			tracker.reset();
 			live = Collections.emptyList();
-			target = null;
 			loggedInSince = 0;
 			clearPath();
+			clearHintArrow();
+			clearMapPoint();
 		});
 	}
 
 	public void onPathSettingChanged()
 	{
-		clearPath();
-		target = null;
+		clientThread.invoke(() ->
+		{
+			if (!config.entPathfinderEnabled())
+			{
+				clearPath();
+			}
+			else if (!live.isEmpty())
+			{
+				pathTo(live.get(0));
+			}
+		});
+	}
+
+	public void onMarkTargetSettingChanged()
+	{
+		clientThread.invoke(() ->
+		{
+			if (config.entMarkTarget())
+			{
+				updateHintArrow();
+				updateMapPoint();
+			}
+			else
+			{
+				clearHintArrow();
+				clearMapPoint();
+			}
+		});
 	}
 
 	/** Every second, on the executor: hold a relay connection only while on the forestry world. */
@@ -197,7 +269,7 @@ public class EntPathfinder
 		{
 			if (isEligible(ent) && !isIgnored(ent))
 			{
-				notifier.notify(config.entNotify(), "Ent called: " + ent.getPlaceName() + " (" + ent.secondsRemaining(now) + "s left)");
+				notifier.notify(config.entNotify(), "Ent called: " + ent.getLabel() + " (" + ent.secondsRemaining(now) + "s left)");
 			}
 		}
 		refresh();
@@ -226,11 +298,82 @@ public class EntPathfinder
 		refresh();
 
 		// Measured here because Shortest Path reports nothing about progress.
-		if (target != null && isReached(target))
+		if (!live.isEmpty() && isReached(live.get(0)))
 		{
-			target.setReached(true);
+			live.get(0).setReached(true);
 			refresh();
 		}
+	}
+
+	// Developer mode only: {@code ::mockcall message}
+	@Subscribe
+	public void onCommandExecuted(CommandExecuted event)
+	{
+		if (!developerMode || !"mockcall".equals(event.getCommand()) || !isLoggedInOnForestryWorld())
+		{
+			return;
+		}
+
+		ChatMessage chatMessage = new ChatMessage();
+		chatMessage.setType(ChatMessageType.FRIENDSCHAT);
+		chatMessage.setMessage(String.join(" ", event.getArguments()));
+
+		// avoid reentrant script calls
+		clientThread.invokeLater(() -> onChatMessage(chatMessage));
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage chatMessage)
+	{
+		if (chatMessage.getType() != ChatMessageType.FRIENDSCHAT || !isLoggedInOnForestryWorld())
+		{
+			return;
+		}
+
+		String message = chatMessage.getMessage().trim().toLowerCase(Locale.ROOT);;
+
+		if (config.entCallEndingsEnabled())
+		{
+			Matcher matcher = ENT_COMPLETED_PATTERN.matcher(message);
+			if (matcher.matches())
+			{
+				String name = matcher.group("before") != null ? matcher.group("before") : matcher.group("after");
+				Set<CallLocation> locations = CallLocationFinder.find(name);
+				if (!locations.isEmpty())
+				{
+					tracker.getActive(serverNow()).forEach(ent ->
+					{
+						if (locations.contains(ent.getLocation()))
+						{
+							ent.setReached(true);
+						}
+					});
+					// avoid reentrant script calls
+					clientThread.invokeLater(this::refresh);
+				}
+			}
+		}
+
+		if (config.entCalloutsEnabled())
+		{
+			Matcher matcher = ENT_CALL_REGEX.matcher(message);
+			if (matcher.matches())
+			{
+				String name = matcher.group("before") != null ? matcher.group("before") : matcher.group("after");
+				CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
+			}
+		}
+	}
+
+	private void createCall(CallLocation location)
+	{
+		String json = String.format(
+			"{\"event_type\":\"%s\",\"world\":%d,\"x_coord\":%d,\"y_coord\":%d,\"plane\":0,\"discovered_time\":%d}",
+			ENT, FORESTRY_WORLD, location.getCentreX(), location.getCentreY(), serverNow());
+		Call call = gson.fromJson(json, Call.class);
+
+		// avoid reentrant script calls
+		clientThread.invokeLater(() -> receive(Collections.singletonList(call)));
 	}
 
 	/**
@@ -240,19 +383,42 @@ public class EntPathfinder
 	 */
 	private void refresh()
 	{
+		List<Ent> previous = live;
 		live = tracker.getActive(serverNow()).stream()
 			.filter(e -> !e.isReached() && isEligible(e) && !isIgnored(e))
 			.collect(Collectors.toList());
 
-		Ent next = live.isEmpty() ? null : live.get(0);
-		if (next == target)
+		for (Ent ent : previous)
+		{
+			if (!live.contains(ent))
+			{
+				overlay.removeSkipEntry(ent);
+			}
+		}
+
+		for (Ent ent : live)
+		{
+			if (!previous.contains(ent))
+			{
+				overlay.addSkipEntry(ent);
+			}
+		}
+
+		// The centre drifts as sightings arrive.
+		if (config.entMarkTarget())
+		{
+			updateHintArrow();
+			updateMapPoint();
+		}
+
+		if (!config.entPathfinderEnabled())
 		{
 			return;
 		}
 
-		target = next;
+		Ent next = live.isEmpty() ? null : live.get(0);
 
-		if (!config.entPathfinderEnabled())
+		if (!previous.isEmpty() && previous.get(0) == next)
 		{
 			return;
 		}
@@ -265,6 +431,13 @@ public class EntPathfinder
 		{
 			pathTo(next);
 		}
+	}
+
+	/** Drop ent from the list and move on to the next ent. */
+	void skip(Ent ent)
+	{
+		ent.setReached(true);
+		refresh();
 	}
 
 	/** Only an ent that spawned while the player was logged in on the world can reward them. */
@@ -281,8 +454,10 @@ public class EntPathfinder
 	private boolean isIgnored(Ent ent)
 	{
 		CallLocation location = ent.getLocation();
-		return (location == CallLocation.SUNBLEAK_ISLAND && config.entIgnoreSunbleak())
-			|| (location == CallLocation.DRUMSTICK_ISLE && config.entIgnoreDrumstickIsle());
+		return location != null
+			&& ((config.entIgnoreSunbleak() && location == CallLocation.SUNBLEAK)
+			|| (config.entIgnoreDrumstickIsle() && location == CallLocation.DRUMSTICK)
+			|| (config.entIgnoreQuestLocked() && !location.isUnlocked(client)));
 	}
 
 	/**
@@ -303,6 +478,83 @@ public class EntPathfinder
 		{
 			pathIsOurs = false;
 			eventBus.post(new PluginMessage(SHORTEST_PATH, "clear", Collections.emptyMap()));
+		}
+	}
+
+	/** Point the hint arrow at the first live ent, or take ours down. Client thread. */
+	private void updateHintArrow()
+	{
+		if (live.isEmpty())
+		{
+			clearHintArrow();
+			return;
+		}
+
+		// Another source's arrow is not ours to replace.
+		if (client.hasHintArrow() && !isOurArrow())
+		{
+			arrowPoint = null;
+			return;
+		}
+
+		Ent ent = live.get(0);
+		arrowPoint = new WorldPoint(ent.getCentreX(), ent.getCentreY(), ent.getPlane());
+		client.setHintArrow(arrowPoint);
+	}
+
+	private void clearHintArrow()
+	{
+		if (isOurArrow())
+		{
+			client.clearHintArrow();
+		}
+		arrowPoint = null;
+	}
+
+	/** The current hint arrow is still the one we set. */
+	private boolean isOurArrow()
+	{
+		return arrowPoint != null
+			&& client.hasHintArrow()
+			&& arrowPoint.equals(client.getHintArrowPoint());
+	}
+
+	/** Mark the first live ent on the world map, or take the marker down. Client thread. */
+	private void updateMapPoint()
+	{
+		if (live.isEmpty())
+		{
+			clearMapPoint();
+			return;
+		}
+
+		Ent ent = live.get(0);
+		WorldPoint target = new WorldPoint(ent.getCentreX(), ent.getCentreY(), ent.getPlane());
+		if (target.equals(mapTarget))
+		{
+			return;
+		}
+
+		clearMapPoint();
+		mapTarget = target;
+		mapPoint = WorldMapPoint.builder()
+			.worldPoint(target)
+			.image(itemManager.getImage(ItemID.BIRD_NEST_EGG_RED))
+			.name(ent.getLabel())
+			.tooltip(ent.getLabel())
+			.snapToEdge(true)
+			.jumpOnClick(true)
+			.build();
+		worldMapPointManager.add(mapPoint);
+	}
+
+	private void clearMapPoint()
+	{
+		if (mapPoint != null)
+		{
+			worldMapPointManager.remove(mapPoint);
+			mapPoint = null;
+			mapTarget = null;
 		}
 	}
 
