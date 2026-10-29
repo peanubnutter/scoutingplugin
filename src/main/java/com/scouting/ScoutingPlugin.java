@@ -72,7 +72,7 @@ public class ScoutingPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		entPathfinder.setEnabled(config.entPathfinderEnabled());
+		updateEntPathfinderEnabled();
 	}
 
 	@Override
@@ -81,13 +81,28 @@ public class ScoutingPlugin extends Plugin
 		entPathfinder.setEnabled(false);
 	}
 
+	private void updateEntPathfinderEnabled()
+	{
+		entPathfinder.setEnabled(config.entPathfinderEnabled() || config.entNotify().isEnabled() || config.entShowOverlay());
+	}
+
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		if (event.getGroup().equals(ScoutingConfig.SCOUTING_CONFIG_GROUP)
-			&& event.getKey().equals(ScoutingConfig.ENT_PATHFINDER_KEY))
+		if (!event.getGroup().equals(ScoutingConfig.SCOUTING_CONFIG_GROUP))
 		{
-			entPathfinder.setEnabled(config.entPathfinderEnabled());
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case ScoutingConfig.ENT_PATHFINDER_KEY:
+				entPathfinder.onPathSettingChanged();
+				// Fall through
+			case ScoutingConfig.ENT_NOTIFY_KEY:
+			case ScoutingConfig.ENT_OVERLAY_KEY:
+				updateEntPathfinderEnabled();
+				break;
 		}
 	}
 

@@ -149,6 +149,12 @@ public class EntPathfinder
 		});
 	}
 
+	public void onPathSettingChanged()
+	{
+		clearPath();
+		target = null;
+	}
+
 	/** Every second, on the executor: hold a relay connection only while on the forestry world. */
 	private void updateRelayConnection()
 	{
@@ -189,9 +195,9 @@ public class EntPathfinder
 		long now = serverNow();
 		for (Ent ent : tracker.accept(entCalls, now))
 		{
-			if (config.entNotify() && isEligible(ent) && !isIgnored(ent))
+			if (isEligible(ent) && !isIgnored(ent))
 			{
-				notifier.notify("Ent called: " + ent.getPlaceName() + " (" + ent.secondsRemaining(now) + "s left)");
+				notifier.notify(config.entNotify(), "Ent called: " + ent.getPlaceName() + " (" + ent.secondsRemaining(now) + "s left)");
 			}
 		}
 		refresh();
@@ -245,6 +251,12 @@ public class EntPathfinder
 		}
 
 		target = next;
+
+		if (!config.entPathfinderEnabled())
+		{
+			return;
+		}
+
 		if (next == null)
 		{
 			clearPath();

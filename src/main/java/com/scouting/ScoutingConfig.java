@@ -4,6 +4,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Notification;
 
 import static com.scouting.ScoutingConfig.SCOUTING_CONFIG_GROUP;
 
@@ -13,6 +14,8 @@ public interface ScoutingConfig extends Config
 	String SCOUTING_CONFIG_GROUP = "event-scouting";
 	String SCOUTING_CONFIG_VERSION_KEY = "event_scouting_version";
 	String ENT_PATHFINDER_KEY = "entPathfinder";
+	String ENT_NOTIFY_KEY = "entNotify";
+	String ENT_OVERLAY_KEY = "entShowOverlay";
 
 	/////////////////// Overall Info / settings
 
@@ -103,19 +106,19 @@ public interface ScoutingConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "entNotify",
+			keyName = ENT_NOTIFY_KEY,
 			name = "Notify on ent call",
 			description = "Send a notification when a new ent is called",
 			position = 1,
 			section = entPathfindingSection
 	)
-	default boolean entNotify()
+	default Notification entNotify()
 	{
-		return true;
+		return Notification.OFF;
 	}
 
 	@ConfigItem(
-			keyName = "entShowOverlay",
+			keyName = ENT_OVERLAY_KEY,
 			name = "Enable overlay",
 			description = "List called ents and their time left on screen",
 			position = 2,

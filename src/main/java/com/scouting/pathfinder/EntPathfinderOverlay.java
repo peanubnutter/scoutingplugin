@@ -47,6 +47,11 @@ class EntPathfinderOverlay extends OverlayPanel
 			return null;
 		}
 
+		panelComponent.getChildren().add(LineComponent.builder()
+			.left("Event Scouting")
+			.leftColor(Color.WHITE)
+			.build());
+
 		if (offline)
 		{
 			panelComponent.getChildren().add(LineComponent.builder()
