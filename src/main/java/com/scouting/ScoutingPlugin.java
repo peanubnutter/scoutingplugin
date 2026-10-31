@@ -9,7 +9,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
-import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
@@ -83,7 +82,10 @@ public class ScoutingPlugin extends Plugin
 
 	private void updateEntPathfinderEnabled()
 	{
-		entPathfinder.setEnabled(config.entPathfinderEnabled() || config.entNotify().isEnabled() || config.entShowOverlay());
+		entPathfinder.setEnabled(config.entPathfinderEnabled()
+			|| config.entNotify().isEnabled()
+			|| config.entShowOverlay()
+			|| config.entMarkTarget());
 	}
 
 	@Subscribe
@@ -97,11 +99,16 @@ public class ScoutingPlugin extends Plugin
 		switch (event.getKey())
 		{
 			case ScoutingConfig.ENT_PATHFINDER_KEY:
+				updateEntPathfinderEnabled();
 				entPathfinder.onPathSettingChanged();
-				// Fall through
+				break;
 			case ScoutingConfig.ENT_NOTIFY_KEY:
 			case ScoutingConfig.ENT_OVERLAY_KEY:
 				updateEntPathfinderEnabled();
+				break;
+			case ScoutingConfig.ENT_MARK_TARGET_KEY:
+				updateEntPathfinderEnabled();
+				entPathfinder.onMarkTargetSettingChanged();
 				break;
 		}
 	}
