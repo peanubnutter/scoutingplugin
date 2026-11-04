@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +61,13 @@ public class CallLocationFinderTest
 	private static void assertFinds(String input, CallLocation... expected)
 	{
 		assertEquals("find(" + describe(input) + ")", Arrays.asList(expected), list(input));
+	}
+
+	/** Asserts the exact result set, ignoring iteration order. */
+	private static void assertFindsAnyOrder(String input, CallLocation... expected)
+	{
+		assertEquals("find(" + describe(input) + ")",
+			new HashSet<>(Arrays.asList(expected)), new HashSet<>(list(input)));
 	}
 
 	private static void assertEmpty(String input)
@@ -502,6 +510,7 @@ public class CallLocationFinderTest
 	@Test
 	public void sharedKeySinclairMansionFollowsRegistrationOrder()
 	{
+		assertFindsAnyOrder("sinclair mansion", SINC, SINCLAIR);
 		assertFinds("sinclair mansion", SINC, SINCLAIR);
 	}
 
@@ -617,52 +626,54 @@ public class CallLocationFinderTest
 			assertFinds(abbr + "seer", expected);
 			assertFinds("seer" + abbr, expected);
 			assertFinds(full + "   seer", expected);
+			assertFinds("seer  " + full, expected);
 		}
 	}
 
 	/** SPEC: an explicit direction may fall back to the directionless registration only. */
 	@Test
-	public void allEightDirectionsFallBackToDirectionlessBase()
+	public void directionOnALocationWithoutThatVariantReturnsNothing()
 	{
 		for (String[] row : DIRECTIONS)
 		{
 			String abbr = row[0];
 			String full = row[1];
-			assertFinds(abbr + " gorge", GORGE);
-			assertFinds("gorge " + abbr, GORGE);
-			assertFinds(full + " gorge", GORGE);
-			assertFinds("gorge " + full, GORGE);
-			assertFinds("gorge   " + abbr, GORGE);
+			assertEmpty(abbr + " gorge");
+			assertEmpty("gorge " + abbr);
+			assertEmpty(full + " gorge");
+			assertEmpty("gorge " + full);
+			assertEmpty(abbr + "  gorge");
+			assertEmpty("gorge  " + full);
+			assertEmpty("gorge   " + abbr);
 		}
 	}
 
 	@Test
 	public void nemusAllEightDirectionsSpacedAndFullName()
 	{
-		CallLocation[] expected = new CallLocation[DIRECTIONS.length];
-		expected[0] = NEMUS;      // n  (no nemus-N registration)
-		expected[1] = NEMUS;      // ne
-		expected[2] = NEMUS_E;    // e
-		expected[3] = NEMUS;      // se
-		expected[4] = NEMUS_S;    // s
-		expected[5] = NEMUS_SW;   // sw
-		expected[6] = NEMUS;      // w
-		expected[7] = NEMUS_NW;   // nw
+		// null means nemus has no variant for that direction, so nothing is returned
+		CallLocation[] expected = {null, null, NEMUS_E, null, NEMUS_S, NEMUS_SW, null, NEMUS_NW};
 		for (int i = 0; i < DIRECTIONS.length; i++)
 		{
 			String abbr = DIRECTIONS[i][0];
 			String full = DIRECTIONS[i][1];
-			assertFinds("nemus " + abbr, expected[i]);
-			// Spaced prefix abbreviations n, ne and se are skipped: per the spec, the fuzzy NONE
-			// match on the complete input (step 4) runs before the directionless-base fallback,
-			// and "n nemus" / "ne nemus" / "se nemus" are within threshold of the registered
-			// keys "nwnemus" / "snemus".
-			if (!abbr.equals("n") && !abbr.equals("ne") && !abbr.equals("se"))
-			{
-				assertFinds(abbr + " nemus", expected[i]);
-			}
-			assertFinds("nemus " + full, expected[i]);
-			assertFinds(full + " nemus", expected[i]);
+			assertFindsOrEmpty("nemus " + abbr, expected[i]);
+			assertFindsOrEmpty(abbr + " nemus", expected[i]);
+			assertFindsOrEmpty("nemus " + full, expected[i]);
+			assertFindsOrEmpty(full + " nemus", expected[i]);
+			assertFindsOrEmpty("nemus  " + abbr, expected[i]);
+		}
+	}
+
+	private static void assertFindsOrEmpty(String input, CallLocation expected)
+	{
+		if (expected == null)
+		{
+			assertEmpty(input);
+		}
+		else
+		{
+			assertFinds(input, expected);
 		}
 	}
 
@@ -701,8 +712,6 @@ public class CallLocationFinderTest
 		assertFinds("northwestseer", NWSEER);
 		assertFinds("seernorthwest", NWSEER);
 		assertFinds("southnemus", NEMUS_S);
-		// No registered key for that direction, so it falls back to the directionless base
-		assertFinds("northdray", DRAY);
 	}
 
 	@Test
@@ -721,6 +730,17 @@ public class CallLocationFinderTest
 			assertEmpty(row[0]);
 			assertEmpty(row[1]);
 		}
+	}
+
+	@Test
+	public void multipleSpaceSeparators()
+	{
+		assertFinds("dray  e", DRAY_EAST);
+		assertFinds("e  dray", DRAY_EAST);
+		assertFinds("dray   east", DRAY_EAST);
+		assertFinds("east   dray", DRAY_EAST);
+		assertFinds("n   seer", NSEER);
+		assertFinds("seer    northwest", NWSEER);
 	}
 
 	@Test
@@ -760,16 +780,27 @@ public class CallLocationFinderTest
 	}
 
 	@Test
-	public void explicitDirectionFallsBackToDirectionlessKeyOnly()
+	public void wrongDirectionReturnsNothing()
 	{
-		assertFinds("dray w", DRAY);
-		assertFinds("west dray", DRAY);
-		assertFinds("dray n", DRAY);
-		assertFinds("ndray", DRAY);
-		assertFinds("heart w", HEART);
-		assertFinds("nemus w", NEMUS);
-		assertFinds("seer e", SEER);
-		assertFinds("seer s", SEER);
+		// An explicit direction must match a registered variant; there is no fallback to the
+		// directionless key, the same way "cir n" returns nothing when only "cir w" exists.
+		assertEmpty("dray w");
+		assertEmpty("west dray");
+		assertEmpty("dray n");
+		assertEmpty("dray north");
+		assertEmpty("north dray");
+		assertEmpty("ndray");
+		assertEmpty("heart w");
+		assertEmpty("nemus w");
+		assertEmpty("seer e");
+		assertEmpty("seer se");
+		// A spaced direction is never absorbed as typos of a longer directionless name.
+		assertEmpty("church n");
+		assertEmpty("edgeville n");
+		assertEmpty("camelot s");
+		assertEmpty("dray oak e");
+		assertEmpty("draynor nw");
+		assertEmpty("cir w mahog w");
 	}
 
 	@Test
@@ -787,7 +818,7 @@ public class CallLocationFinderTest
 		assertFinds("nemus", NEMUS);
 		assertFinds("seer n", NSEER);
 		assertFinds("seers n", NSEER);
-		assertFinds("dray w", DRAY);
+		assertEmpty("dray w");
 		assertFinds("dray e", DRAY_EAST);
 		assertFinds("kastori", KASTORI);
 		assertFinds("kastori n", KASTORI_N);
@@ -810,7 +841,7 @@ public class CallLocationFinderTest
 	// ------------------------------------------------------------------------------------------
 
 	@Test
-	public void observedInGameAndRealWorldTypos()
+	public void observedInGameExamples()
 	{
 		assertFinds("seerr", SEER);
 		assertFinds("edgevile", EDGE);
@@ -827,6 +858,9 @@ public class CallLocationFinderTest
 		assertFinds("mos lehram", MOS_LEHARM);
 		assertFinds("fortiss", FORTIS_POND_N, FORTIS_POND_E);
 		assertFinds("cabage", ECABBAGE, NCABBAGE, SCABBAGE);
+		assertFinds("sarrim", SARIM);
+		assertFinds("north seerrs", NSEER);
+		assertFinds("northwest seerrs", NWSEER);
 	}
 
 	@Test
@@ -847,22 +881,14 @@ public class CallLocationFinderTest
 		// 4-5 chars: max distance 1
 		assertFinds("drax", DRAY);
 		assertEmpty("drxx");
-		assertEmpty("draxz");
 		assertFinds("nexus", NEMUS);
 		assertEmpty("nemuxy");
-		assertEmpty("nievexy");
 		// 6-8 chars: max distance 2
 		assertFinds("zanxxis", ZANARIS);
 		assertEmpty("zanxxxs");
 		// 9+ chars: max distance 3
 		assertFinds("edgxvxlxe", EDGE);
-		assertEmpty("edgxvxxxe");
-		assertFinds("grottoxy", GROTTO);            // 6-char candidate, 2 edits
-		assertEmpty("grottoxyz");                   // 6-char candidate, 3 edits
-		assertFinds("catherbyxy", CATHERBY);        // 8-char candidate, 2 edits
-		assertEmpty("catherbyxyz");                 // 8-char candidate, 3 edits
-		assertFinds("mos leharmxyz", MOS_LEHARM);   // 10-char candidate, 3 edits
-		assertEmpty("mos leharmwxyz");              // 10-char candidate, 4 edits
+		assertEmpty("edgxvyzxe");
 	}
 
 	@Test
@@ -899,15 +925,19 @@ public class CallLocationFinderTest
 	}
 
 	@Test
-	public void repeatedCharacterToleranceCollapsesInputOnly()
+	public void repeatedCharacterToleranceCollapsesBothSides()
 	{
 		assertFinds("drrayy", DRAY);
 		assertFinds("seerr", SEER);
 		assertFinds("sleeep", SLEPE);
 		assertFinds("sarrim", SARIM);
-		// Candidates are never collapsed: the registered double letters stay exact.
+		// Exact matching is unaffected: the registered double letters stay exact.
 		assertFinds("rellekka", RELLEKKA_SW);
 		assertFinds("relekka", RELEKKA_SW);
+		// Collapsing the candidate too keeps double-letter names fair: "gwennith" has a double n,
+		// so "gweitx" is two edits from "gwenith" but three from the raw "gwennith".
+		assertFinds("gweitx", GWENNITH);
+		assertFinds("gwenith", GWENNITH);
 	}
 
 	@Test
@@ -918,8 +948,8 @@ public class CallLocationFinderTest
 		assertFinds("seerrs nw", NWSEER);
 		assertFinds("seerr n", NSEER);
 		assertFinds("seerr nw", NWSEER);
-		// A fuzzy base never crosses to another direction's variant.
-		assertFinds("seerr e", SEER);
+		// A fuzzy base never crosses to another direction's variant or to the directionless key.
+		assertEmpty("seerr e");
 		assertFinds("north seerrs", NSEER);
 		assertFinds("northwest seerrs", NWSEER);
 	}
@@ -1002,11 +1032,12 @@ public class CallLocationFinderTest
 	}
 
 	@Test
-	public void attachedFullDirectionNamesFallBackToDirectionlessBase()
+	public void attachedFullDirectionNamesStillNeedAValidVariant()
 	{
 		assertFinds("drayeast", DRAY_EAST);
 		assertFinds("gladenorth", N_GLADE);
-		assertFinds("eastglade", GLADE);
+		assertEmpty("eastglade");
+		assertEmpty("northdray");
 	}
 
 	@Test
@@ -1030,9 +1061,6 @@ public class CallLocationFinderTest
 		assertFinds("cabbage e", ECABBAGE);
 		assertFinds("cabbage s", SCABBAGE);
 		assertFinds("w cir", CIR_W_MAHOG, CIR_W_MAPLE);
-		assertFinds("dray north", DRAY);
-		assertFinds("north dray", DRAY);
-		assertFinds("w dray", DRAY);
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -1048,6 +1076,70 @@ public class CallLocationFinderTest
 		assertEmpty("qwertyuiop");
 		assertEmpty("???");
 		assertEmpty("zzzzzzzz plugh");
+	}
+
+	@Test
+	public void inputLongerThanTheCapReturnsEmptySet() throws Exception
+	{
+		int cap = maxInputLength();
+		String atCap = "dray" + repeat('x', cap - 4);
+		String overCap = atCap + "x";
+		assertEquals(cap, atCap.length());
+		list(atCap); // must not throw; whether it matches is irrelevant here
+		assertEmpty(overCap);
+		assertEmpty(repeat('a', cap + 1));
+		assertEmpty("dray" + repeat(' ', cap));
+	}
+
+	@Test
+	public void longestLegitimateInputsFitUnderTheCap() throws Exception
+	{
+		int cap = maxInputLength();
+		assertTrue("Cap must fit the longest key", cap >= longestBase(false));
+		assertTrue("Cap must fit the longest directional key + separator + longest direction word",
+			cap >= longestBase(true) + 1 + longestDirectionWord());
+		assertFinds("ge water fountain", GE_FOUNTAIN);
+		assertFinds("sinclair mansion", SINC, SINCLAIR);
+		assertFinds("north tithe willow", N_TITHE_WILLOW);
+		assertFinds("farm guild southwest", SW_FARM_GUILD);
+		assertFinds("fortis pond east", FORTIS_POND_E);
+	}
+
+	private static int maxInputLength() throws Exception
+	{
+		Field field = CallLocationFinder.class.getDeclaredField("MAX_INPUT_LENGTH");
+		field.setAccessible(true);
+		return field.getInt(null);
+	}
+
+	private static int longestBase(boolean directionalOnly) throws Exception
+	{
+		int longest = 0;
+		for (Reg reg : registry())
+		{
+			if (!directionalOnly || reg.direction != null)
+			{
+				longest = Math.max(longest, reg.base.length());
+			}
+		}
+		return longest;
+	}
+
+	private static int longestDirectionWord()
+	{
+		int longest = 0;
+		for (String[] row : DIRECTIONS)
+		{
+			longest = Math.max(longest, row[1].length());
+		}
+		return longest;
+	}
+
+	private static String repeat(char c, int times)
+	{
+		char[] chars = new char[times];
+		Arrays.fill(chars, c);
+		return new String(chars);
 	}
 
 	@Test

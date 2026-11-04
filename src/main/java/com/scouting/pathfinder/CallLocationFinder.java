@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -25,7 +26,8 @@ import org.apache.commons.text.similarity.LevenshteinDistance;
  * are treated as more common calls.</li>
  * <li>Spaced forms ("dray e", "north seer") are derived from the {@code of(base, direction)}
  * keys; attached forms ("snemus") are registered so they can also be fuzzy-matched as names.</li>
- * <li>An explicit direction never falls back to another direction, only to the directionless base.</li>
+ * <li>An explicit direction must match a registered directional key; it never falls back to another
+ * direction or to the directionless base, so "dray w" returns nothing if there is no west Dray.</li>
  * <li>The fuzzy rules (length, first character, anagrams, repeated letters) live in
  * {@code evaluateFuzzyCandidate}.</li>
  * </ul>
@@ -35,6 +37,10 @@ public class CallLocationFinder
 	private static final Map<LocationKey, Set<CallLocation>> LOCATION_KEYS = new LinkedHashMap<>();
 	private static final LevenshteinDistance LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
 	private static final Predicate<LocationKey> FUZZY_NONE = key -> key.direction == null;
+	private static final Pattern REPEATS = Pattern.compile("(?s)(.)\\1+");
+
+	/** Longest key is 17; longest directional key (11) + separator + longest direction word (9) is 21; room for typos. */
+	private static final int MAX_INPUT_LENGTH = 32;
 
 	static
 	{
@@ -183,7 +189,7 @@ public class CallLocationFinder
 	 */
 	public static Set<CallLocation> find(String input)
 	{
-		return input == null || input.isEmpty() || isDirectionOnly(input)
+		return input == null || input.isEmpty() || input.length() > MAX_INPUT_LENGTH || isDirectionOnly(input)
 			? new LinkedHashSet<>() : new LinkedHashSet<>(lookup(input));
 	}
 
@@ -194,12 +200,8 @@ public class CallLocationFinder
 		Set<LocationKey> adjacent = parseDirections(input, false);
 		if (!spaced.isEmpty())
 		{
-			return firstMatch(
-				() -> earliest(spaced),
-				() -> exactNone(input),
-				() -> fuzzyDirectional(spaced),
-				() -> fuzzyNone(input),
-				() -> directionlessBase(spaced));
+			// No registered name starts or ends with a direction, so the call must match a directional key.
+			return firstMatch(() -> earliest(spaced), () -> fuzzyDirectional(spaced));
 		}
 		if (!adjacent.isEmpty())
 		{
@@ -210,8 +212,7 @@ public class CallLocationFinder
 				() -> exactDirectionalBase(input),
 				() -> fuzzyNone(input),
 				() -> fuzzyDirectionalBase(input),
-				() -> fuzzyDirectional(adjacent),
-				() -> directionlessBase(adjacent));
+				() -> fuzzyDirectional(adjacent));
 		}
 		return firstMatch(
 			() -> exactNone(input),
@@ -225,14 +226,6 @@ public class CallLocationFinder
 	{
 		return Arrays.stream(steps).map(Supplier::get).filter(match -> !match.isEmpty())
 			.findFirst().orElse(Collections.emptySet());
-	}
-
-	/** An explicit direction may fall back to a directionless key for its base, never to another direction. */
-	private static Set<CallLocation> directionlessBase(Set<LocationKey> parses)
-	{
-		Set<CallLocation> exact = earliest(parses.stream().map(parse -> of(parse.base)).collect(Collectors.toSet()));
-		return !exact.isEmpty() ? exact
-			: resolve(parses.stream().map(parse -> bestFuzzy(parse.base, FUZZY_NONE)).reduce(null, CallLocationFinder::better));
 	}
 
 	private static boolean isDirectionOnly(String input)
@@ -331,7 +324,7 @@ public class CallLocationFinder
 
 	private static FuzzyCandidate bestFuzzy(String input, Predicate<LocationKey> eligible)
 	{
-		String collapsed = input.replaceAll("(?s)(.)\\1+", "$1"); // "drrayy" -> "dray"
+		String collapsed = collapse(input);
 		FuzzyCandidate best = null;
 		int order = 0;
 		for (LocationKey key : LOCATION_KEYS.keySet())
@@ -356,10 +349,19 @@ public class CallLocationFinder
 			return null;
 		}
 
-		boolean anagram = isAnagram(input, candidate);
-		int distance = Math.min(LEVENSHTEIN.apply(input, candidate), LEVENSHTEIN.apply(collapsedInput, candidate));
-		int threshold = Math.min(3, candidate.length() / 3);
-		return anagram || distance <= threshold ? new FuzzyCandidate(key, distance, anagram, order) : null;
+		// The plain and the collapsed comparison are each judged against the length of the candidate they used.
+		String collapsedCandidate = collapse(candidate);
+		int plain = LEVENSHTEIN.apply(input, candidate);
+		int collapsed = LEVENSHTEIN.apply(collapsedInput, collapsedCandidate);
+		int distance = Math.min(
+			plain <= Math.min(3, candidate.length() / 3) ? plain : Integer.MAX_VALUE,
+			collapsed <= Math.min(3, collapsedCandidate.length() / 3) ? collapsed : Integer.MAX_VALUE);
+
+		if (isAnagram(input, candidate))
+		{
+			return new FuzzyCandidate(key, Math.min(plain, collapsed), true, order);
+		}
+		return distance == Integer.MAX_VALUE ? null : new FuzzyCandidate(key, distance, false, order);
 	}
 
 	/** Anagrams first, then lowest distance, then earliest registration. */
@@ -371,6 +373,12 @@ public class CallLocationFinder
 	private static FuzzyCandidate better(FuzzyCandidate current, FuzzyCandidate challenger)
 	{
 		return challenger != null && (current == null || BEST.compare(challenger, current) < 0) ? challenger : current;
+	}
+
+	/** Collapses runs of the same character on both sides of a comparison: "drrayy" becomes "dray". */
+	private static String collapse(String text)
+	{
+		return REPEATS.matcher(text).replaceAll("$1");
 	}
 
 	private static boolean isAnagram(String a, String b)
