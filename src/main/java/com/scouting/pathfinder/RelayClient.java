@@ -88,7 +88,6 @@ class RelayClient
 			return;
 		}
 
-		log.debug("Disconnecting from ent relay");
 		closeCurrent();
 		this.url = url;
 		failedAttempts = 0;
@@ -153,6 +152,7 @@ class RelayClient
 		}
 		if (socket != null)
 		{
+			log.debug("Disconnecting from ent relay");
 			socket.close(CLOSE_NORMAL, null);
 			socket = null;
 		}

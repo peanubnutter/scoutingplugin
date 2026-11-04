@@ -5,13 +5,20 @@ import com.scouting.ScoutingConfig;
 import com.scouting.ScoutingPlugin;
 import com.scouting.pathfinder.EntTracker.Ent;
 import com.scouting.pathfinder.RelayClient.Call;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -38,6 +45,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
+import net.runelite.client.util.Text;
 import okhttp3.OkHttpClient;
 
 /**
@@ -67,7 +75,7 @@ public class EntPathfinder
 	private static final String ENT = "ENT";
 	private static final String SHORTEST_PATH = "shortestpath";
 
-	private static final String ENT_DONE = "d(?:ead|one|oa)?[0-5]?|fake";
+	private static final String ENT_DONE = "d(?:ead|one)?[0-5]?|doa|fake";
 
 	private static final Pattern ENT_COMPLETED_PATTERN = Pattern.compile(
 		"^(?:(?<before>.+?)\\s+(?:" + ENT_DONE + ")"
@@ -77,10 +85,14 @@ public class EntPathfinder
 	private static final String ENT_SUFFIX = "(?:\\s+(?:p|plugin|l|late|again|solo|duo|stall|spam))?";
 
 	private static final Pattern ENT_CALL_REGEX = Pattern.compile(
-		"^(?!.*\\b(?:" + ENT_DONE + "|branch(?:es)?)\\b)"
+		"^(?!.*\\b(?:" + ENT_DONE + ")\\b)"
 			+ "(?:(?<before>.+?)\\s+ents?" + ENT_SUFFIX
 			+ "|ents?\\s+(?<after>.+?)" + ENT_SUFFIX + ")$",
 		Pattern.CASE_INSENSITIVE);
+
+	private static final Duration CALL_COOLDOWN = Duration.ofSeconds(15);
+
+	private final Map<String, Instant> lastCallTimes = new HashMap<>();
 
 	private final ScoutingConfig config;
 	private final EntPathfinderOverlay overlay;
@@ -129,7 +141,11 @@ public class EntPathfinder
 	private final EntTracker tracker = new EntTracker();
 	/** Running ents not yet reached, oldest first. The path points at the first. */
 	private List<Ent> live = Collections.emptyList();
-	private boolean pathIsOurs;
+	/** The target we last asked Shortest Path to show, or null if we have no path. */
+	private WorldPoint ourTarget;
+	/** Only the latest Shortest Path query is kept, so one that never replies can't pile up callbacks. */
+	private String pendingQueryId;
+	private Consumer<List<?>> pendingQuery;
 	/** The last point we pointed the hint arrow at, to tell our arrow from another source's. */
 	private WorldPoint arrowPoint;
 	/** The world map marker for the current target, and the point it sits on. */
@@ -189,7 +205,15 @@ public class EntPathfinder
 			tracker.reset();
 			live = Collections.emptyList();
 			loggedInSince = 0;
-			clearPath();
+			lastCallTimes.clear();
+			// We're unregistered, so a query could never be answered. Clear only if we set a path.
+			if (ourTarget != null)
+			{
+				eventBus.post(new PluginMessage(SHORTEST_PATH, "clear", Collections.emptyMap()));
+			}
+			ourTarget = null;
+			pendingQuery = null;
+			pendingQueryId = null;
 			clearHintArrow();
 			clearMapPoint();
 		});
@@ -316,10 +340,10 @@ public class EntPathfinder
 
 		ChatMessage chatMessage = new ChatMessage();
 		chatMessage.setType(ChatMessageType.FRIENDSCHAT);
+		chatMessage.setName("mockcall");
 		chatMessage.setMessage(String.join(" ", event.getArguments()));
 
-		// avoid reentrant script calls
-		clientThread.invokeLater(() -> onChatMessage(chatMessage));
+		onChatMessage(chatMessage);
 	}
 
 	@Subscribe
@@ -348,7 +372,8 @@ public class EntPathfinder
 							ent.setReached(true);
 						}
 					});
-					// avoid reentrant script calls
+					// onChatMessage runs during a client script callback. Defer the call because
+                    // CallLocation#isUnlocked invokes client.runScript, which is not reentrant.
 					clientThread.invokeLater(this::refresh);
 				}
 			}
@@ -359,6 +384,16 @@ public class EntPathfinder
 			Matcher matcher = ENT_CALL_REGEX.matcher(message);
 			if (matcher.matches())
 			{
+				String caller = Text.sanitize(chatMessage.getName());
+				Instant now = Instant.now();
+				Instant last = lastCallTimes.get(caller);
+
+				if (last != null && Duration.between(last, now).compareTo(CALL_COOLDOWN) < 0)
+				{
+					return;
+				}
+				lastCallTimes.put(caller, now);
+
 				String name = matcher.group("before") != null ? matcher.group("before") : matcher.group("after");
 				CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
 			}
@@ -372,8 +407,36 @@ public class EntPathfinder
 			ENT, FORESTRY_WORLD, location.getCentreX(), location.getCentreY(), serverNow());
 		Call call = gson.fromJson(json, Call.class);
 
-		// avoid reentrant script calls
+		// onChatMessage runs during a client script callback. Defer the call because
+		// CallLocation#isUnlocked invokes client.runScript, which is not reentrant.
 		clientThread.invokeLater(() -> receive(Collections.singletonList(call)));
+	}
+
+	/**
+	 * Handles Shortest Path's reply to a {@link #queryPath} request. Replies are broadcast to every
+	 * plugin, so the request id is checked to make sure this one answers our latest query. Runs the
+	 * saved callback with the reported target list, or null if no path is set.
+	 */
+	@Subscribe
+	public void onPluginMessage(PluginMessage message)
+	{
+		if (!SHORTEST_PATH.equals(message.getNamespace()) || !"currentTarget".equals(message.getName()))
+		{
+			return;
+		}
+
+		Map<String, Object> data = message.getData();
+		if (pendingQuery == null || !Objects.equals(pendingQueryId, data.get("id")))
+		{
+			return; // not our query, or superseded by a newer one
+		}
+
+		Consumer<List<?>> callback = pendingQuery;
+		pendingQuery = null;
+		pendingQueryId = null;
+
+		boolean set = Boolean.TRUE.equals(data.get("set"));
+		callback.accept(set ? (List<?>) data.get("target") : null);
 	}
 
 	/**
@@ -461,24 +524,79 @@ public class EntPathfinder
 	}
 
 	/**
-	 * One target, never a set: Shortest Path treats a set as "any of these" and clears the whole
-	 * path on reaching any one, dropping the route to every other ent.
+	 * Asks Shortest Path what path it is currently showing. The answer arrives later, in
+	 * {@link #onPluginMessage}, which runs {@code callback} with the target list (null if no path is
+	 * set). Only the latest query is kept: a newer call replaces an older one that never got a reply.
+	 */
+	private void queryPath(Consumer<List<?>> callback)
+	{
+		pendingQueryId = UUID.randomUUID().toString();
+		pendingQuery = callback;
+		eventBus.post(new PluginMessage(SHORTEST_PATH, "getTarget",
+			Collections.singletonMap("id", pendingQueryId)));
+	}
+
+	/**
+	 * True only if the path Shortest Path currently shows is exactly the one we set: a single target
+	 * equal to {@link #ourTarget}. Anything else (no target of ours, several targets, a different
+	 * point) means the path belongs to someone else.
+	 */
+	private boolean isOurPath(List<?> targets)
+	{
+		return ourTarget != null
+			&& targets.size() == 1
+			&& ourTarget.equals(targets.get(0));
+	}
+
+	/**
+	 * Points Shortest Path at the given ent, unless the player or another plugin already has a path
+	 * of their own. One target, never a set: Shortest Path treats a set as "any of these" and clears
+	 * the whole path on reaching any one, dropping the route to every other ent. Asynchronous: the
+	 * path is set when Shortest Path's reply arrives, not when this returns.
 	 */
 	private void pathTo(Ent ent)
 	{
 		WorldPoint point = new WorldPoint(ent.getCentreX(), ent.getCentreY(), ent.getPlane());
-		pathIsOurs = true;
-		eventBus.post(new PluginMessage(SHORTEST_PATH, "path", Collections.singletonMap("target", point)));
+
+		queryPath(existing ->
+		{
+			if (existing != null && !isOurPath(existing))
+			{
+				// Someone else's path, or ours was replaced: leave it alone.
+				ourTarget = null;
+				return;
+			}
+
+			ourTarget = point;
+			eventBus.post(new PluginMessage(SHORTEST_PATH, "path",
+				Collections.singletonMap("target", point)));
+		});
 	}
 
-	/** Shortest Path does not broadcast its target, so this never clears a path the player set. */
+	/**
+	 * Clears the path, but only if Shortest Path is still showing the one we set, so a path the
+	 * player set afterward is never touched. Asynchronous like {@link #pathTo}. If we have no path
+	 * yet, cancels any {@code pathTo} still waiting on its reply so it can't set one after this clear.
+	 */
 	private void clearPath()
 	{
-		if (pathIsOurs)
+		if (ourTarget == null)
 		{
-			pathIsOurs = false;
-			eventBus.post(new PluginMessage(SHORTEST_PATH, "clear", Collections.emptyMap()));
+			// Drop any pathTo still waiting on its reply so it can't set a path after we've cleared.
+			pendingQuery = null;
+			pendingQueryId = null;
+			return;
 		}
+
+		queryPath(existing ->
+		{
+			if (existing != null && isOurPath(existing))
+			{
+				eventBus.post(new PluginMessage(SHORTEST_PATH, "clear", Collections.emptyMap()));
+			}
+			// Whether or not we cleared, we no longer own a path.
+			ourTarget = null;
+		});
 	}
 
 	/** Point the hint arrow at the first live ent, or take ours down. Client thread. */

@@ -127,7 +127,7 @@ public interface ScoutingConfig extends Config
 	)
 	default boolean entQuickTele()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(

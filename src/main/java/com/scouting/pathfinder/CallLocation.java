@@ -143,9 +143,8 @@ public enum CallLocation
 	WOODLAND_NW("Woodland NW", 1531, 3475, "Rada Blessing Woodland northwest"),
 	ZANARIS("Zanaris", 2415, 4463, "Fairy Ring Zanaris", Quest.LOST_CITY);
 
-	//TODO: Update radius and method to match loghunters discord bot
 	/** Default match radius of a forestry event */
-	private static final int DEFAULT_RADIUS_TILES = 30;
+	private static final int DEFAULT_RADIUS_TILES = 40;
 
 	@Getter
 	private final String callout;
