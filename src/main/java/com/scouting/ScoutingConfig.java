@@ -16,7 +16,7 @@ public interface ScoutingConfig extends Config
 	String ENT_PATHFINDER_KEY = "entPathfinder";
 	String ENT_NOTIFY_KEY = "entNotify";
 	String ENT_OVERLAY_KEY = "entShowOverlay";
-	String ENT_MARK_TARGET_KEY = "entMarkTarget";
+	String ENT_HINT_ARROW_KEY = "entShowHintArrow";
 
 	/////////////////// Overall Info / settings
 
@@ -120,7 +120,7 @@ public interface ScoutingConfig extends Config
 
 	@ConfigItem(
 		keyName = "entQuickTele",
-		name = "Show quick tele",
+		name = "Show quick teleport",
 		description = "Show the quick teleport under each ent in the overlay",
 		position = 2,
 		section = entScoutTrackingSection
@@ -131,20 +131,20 @@ public interface ScoutingConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = ENT_MARK_TARGET_KEY,
-		name = "Mark current ent call",
-		description = "Show a hint arrow and a world map marker at the current ent call",
+		keyName = ENT_HINT_ARROW_KEY,
+		name = "Show hint arrow",
+		description = "Show a hint arrow pointing to the current ent call",
 		position = 3,
 		section = entScoutTrackingSection
 	)
-	default boolean entMarkTarget()
+	default boolean entShowHintArrow()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
 			keyName = ENT_NOTIFY_KEY,
-			name = "Notify on ent call",
+			name = "Notify on call",
 			description = "Send a notification when a new ent is called",
 			position = 4,
 			section = entScoutTrackingSection

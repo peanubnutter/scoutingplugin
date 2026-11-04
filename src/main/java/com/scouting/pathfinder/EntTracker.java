@@ -97,7 +97,7 @@ class EntTracker
 			this.firstSeen = seed.getDiscoveredTime();
 			this.location = CallLocation.nearest(seed.getXCoord(), seed.getYCoord());
 			this.label = location == null
-				? "Unnamed location (" + seed.getXCoord() + ", " + seed.getYCoord() + ")"
+				? "Unnamed (" + seed.getXCoord() + ", " + seed.getYCoord() + ")"
 				: location.getCallout();
 			sightings.add(seed);
 		}

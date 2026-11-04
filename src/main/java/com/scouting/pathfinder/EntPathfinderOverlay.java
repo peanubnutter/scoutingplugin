@@ -89,10 +89,10 @@ class EntPathfinderOverlay extends OverlayPanel
 				.rightColor(remaining <= 20 ? Color.RED : remaining <= 45 ? Color.ORANGE : Color.GREEN)
 				.build());
 
-			if (config.entQuickTele() && ent.getLocation() != null)
+			if (config.entQuickTele())
 			{
 				panelComponent.getChildren().add(LineComponent.builder()
-					.left(ent.getLocation().getQuickTele())
+					.left(ent.getLocation() != null ? ent.getLocation().getQuickTele() : "See location on world map")
 					.leftColor(Color.GRAY)
 					.build());
 			}

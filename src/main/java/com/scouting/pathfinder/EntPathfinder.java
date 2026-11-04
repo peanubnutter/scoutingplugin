@@ -234,19 +234,17 @@ public class EntPathfinder
 		});
 	}
 
-	public void onMarkTargetSettingChanged()
+	public void onHintArrowSettingChanged()
 	{
 		clientThread.invoke(() ->
 		{
-			if (config.entMarkTarget())
+			if (config.entShowHintArrow())
 			{
 				updateHintArrow();
-				updateMapPoint();
 			}
 			else
 			{
 				clearHintArrow();
-				clearMapPoint();
 			}
 		});
 	}
@@ -395,16 +393,28 @@ public class EntPathfinder
 				lastCallTimes.put(caller, now);
 
 				String name = matcher.group("before") != null ? matcher.group("before") : matcher.group("after");
-				CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
+				if (developerMode && "unnamed".equals(name))
+				{
+					createCall(null);
+				}
+				else
+				{
+					CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
+				}
 			}
 		}
 	}
 
 	private void createCall(CallLocation location)
 	{
+		// location is null only for the developer-mode "unnamed" test call,
+		// which uses fixed coordinates in the Kharazi Jungle
+		int x = location != null ? location.getCentreX() : 2840;
+		int y = location != null ? location.getCentreY() : 2910;
+
 		String json = String.format(
 			"{\"event_type\":\"%s\",\"world\":%d,\"x_coord\":%d,\"y_coord\":%d,\"plane\":0,\"discovered_time\":%d}",
-			ENT, FORESTRY_WORLD, location.getCentreX(), location.getCentreY(), serverNow());
+			ENT, FORESTRY_WORLD, x, y, serverNow());
 		Call call = gson.fromJson(json, Call.class);
 
 		// onChatMessage runs during a client script callback. Defer the call because
@@ -468,10 +478,10 @@ public class EntPathfinder
 		}
 
 		// The centre drifts as sightings arrive.
-		if (config.entMarkTarget())
+		updateMapPoint();
+		if (config.entShowHintArrow())
 		{
 			updateHintArrow();
-			updateMapPoint();
 		}
 
 		if (!config.entPathfinderEnabled())

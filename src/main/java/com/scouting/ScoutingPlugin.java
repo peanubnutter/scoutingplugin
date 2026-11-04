@@ -84,8 +84,7 @@ public class ScoutingPlugin extends Plugin
 	{
 		entPathfinder.setEnabled(config.entPathfinderEnabled()
 			|| config.entNotify().isEnabled()
-			|| config.entShowOverlay()
-			|| config.entMarkTarget());
+			|| config.entShowOverlay());
 	}
 
 	@Subscribe
@@ -106,9 +105,9 @@ public class ScoutingPlugin extends Plugin
 			case ScoutingConfig.ENT_OVERLAY_KEY:
 				updateEntPathfinderEnabled();
 				break;
-			case ScoutingConfig.ENT_MARK_TARGET_KEY:
+			case ScoutingConfig.ENT_HINT_ARROW_KEY:
 				updateEntPathfinderEnabled();
-				entPathfinder.onMarkTargetSettingChanged();
+				entPathfinder.onHintArrowSettingChanged();
 				break;
 		}
 	}
