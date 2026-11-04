@@ -58,10 +58,10 @@ public class ScoutingPlugin extends Plugin
 			"https://g98c6e9efd32fb1-scouting.adb.us-ashburn-1.oraclecloudapps.com/ords/scouting/calls/";
 
 	// Make sure to update this version to show the plugin message below.
-	private final String pluginVersion = "v1.1.0";
+	private final String pluginVersion = "v1.2.0";
 	private final String pluginMessage = "<colHIGHLIGHT>Event Scouting " + pluginVersion + ":<br>" +
-			"<colHIGHLIGHT>* Added automatic Ent notifications and tracking using Shortest Path!<br>" +
-			"<colHIGHLIGHT>* You must manually enable this in the settings<br>";
+			"<colHIGHLIGHT>* Overhauled Ent scouting, adding map markers, quick teles, friends chat support, and more <br>" +
+			"<colHIGHLIGHT>* Fixed Forestry location names and issues clearing existing Shortest Paths<br>";
 
 	// Every X seconds, upload any events found since the last check
 	private static final int UPLOAD_INTERVAL_SECONDS = 3;

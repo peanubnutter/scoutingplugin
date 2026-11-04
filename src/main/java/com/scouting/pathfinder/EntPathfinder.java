@@ -90,8 +90,9 @@ public class EntPathfinder
 			+ "|ents?\\s+(?<after>.+?)" + ENT_SUFFIX + ")$",
 		Pattern.CASE_INSENSITIVE);
 
-	private static final Duration CALL_COOLDOWN = Duration.ofSeconds(15);
+	private static final Duration CALL_COOLDOWN = Duration.ofSeconds(10);
 
+	// Last call time for each username (primarily to avoid spam by using CALL_COOLDOWN)
 	private final Map<String, Instant> lastCallTimes = new HashMap<>();
 
 	private final ScoutingConfig config;
