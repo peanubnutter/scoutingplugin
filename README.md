@@ -14,7 +14,7 @@ Make sure to enable each event type in the plugin settings if you want to contri
 
 Off by default. Turn on **Use 'Shortest Path' Plugin** under *Ent Pathfinding* and, while you are
 logged in on world 444, the plugin routes you to each called ent with the
-[Shortest Path](https://github.com/Skretzo/shortest-path) plugin, oldest first, and lists them on
+[Shortest Path](https://runelite.net/plugin-hub/show/shortest-path) plugin, oldest first, and lists them on
 screen with their time left. Reaching an ent moves the path on to the next one. Only ents called
 since you logged in on the world are used, as you must be logged in when an ent spawns to be eligible.
 
