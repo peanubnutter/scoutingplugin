@@ -354,7 +354,7 @@ public class EntPathfinder
 
 		String message = chatMessage.getMessage().trim().toLowerCase(Locale.ROOT);;
 
-		if (config.entCallEndingsEnabled())
+		if (config.entChatRemoveEnabled())
 		{
 			Matcher matcher = ENT_COMPLETED_PATTERN.matcher(message);
 			if (matcher.matches())
@@ -377,7 +377,7 @@ public class EntPathfinder
 			}
 		}
 
-		if (config.entCalloutsEnabled())
+		if (config.entChatAddEnabled())
 		{
 			Matcher matcher = ENT_CALL_REGEX.matcher(message);
 			if (matcher.matches())

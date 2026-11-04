@@ -95,7 +95,7 @@ public interface ScoutingConfig extends Config
 
 	@ConfigItem(
 			keyName = ENT_PATHFINDER_KEY,
-			name = "Use 'Shortest Path' Plugin",
+			name = "Use 'Shortest Path' plugin",
 			description = "On world 444, ask the Shortest Path plugin to route to each called ent in turn, oldest first.",
 			warning = "This will only work if you have the 'Shortest Path' plugin installed and enabled.",
 			position = 0,
@@ -155,34 +155,10 @@ public interface ScoutingConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "entCalloutsEnabled",
-		name = "Enable chat callouts",
-		description = "Recognize ent callouts (Location ent) in Friends Chat",
-		position = 5,
-		section = entScoutTrackingSection
-	)
-	default boolean entCalloutsEnabled()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "entCallEndingsEnabled",
-		name = "Enable chat call endings",
-		description = "Recognize call endings (Location D) in Friends Chat",
-		position = 6,
-		section = entScoutTrackingSection
-	)
-	default boolean entCallEndingsEnabled()
-	{
-		return false;
-	}
-
-	@ConfigItem(
 		keyName = "entIgnoreQuestLocked",
 		name = "Ignore quest-locked locations",
 		description = "Skip ents at locations that need a quest you haven't completed",
-		position = 7,
+		position = 5,
 		section = entScoutTrackingSection
 	)
 	default boolean entIgnoreQuestLocked()
@@ -195,7 +171,7 @@ public interface ScoutingConfig extends Config
 			name = "Ignore Sunbleak Island",
 			description = "Skip ents on Sunbleak Island, which requires 72 Sailing, adamant helm,"
 					+ " and greater teleport focus. Very crowded.",
-			position = 8,
+			position = 6,
 			section = entScoutTrackingSection
 	)
 	default boolean entIgnoreSunbleak()
@@ -207,10 +183,34 @@ public interface ScoutingConfig extends Config
 			keyName = "entIgnoreDrumstickIsle",
 			name = "Ignore Drumstick Isle",
 			description = "Skip ents on Drumstick Isle, which requires 79 Sailing and an adamant keel",
-			position = 9,
+			position = 7,
 			section = entScoutTrackingSection
 	)
 	default boolean entIgnoreDrumstickIsle()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "entChatAddEnabled",
+		name = "Friends chat: add ents",
+		description = "Add an ent to the tracker when someone calls it in Friends chat, e.g. \"Dray ent\"",
+		position = 8,
+		section = entScoutTrackingSection
+	)
+	default boolean entChatAddEnabled()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "entChatRemoveEnabled",
+		name = "Friends chat: remove ents",
+		description = "Remove an ent from the tracker when someone calls its location done in Friends chat, e.g. \"Dray D\"",
+		position = 9,
+		section = entScoutTrackingSection
+	)
+	default boolean entChatRemoveEnabled()
 	{
 		return false;
 	}
