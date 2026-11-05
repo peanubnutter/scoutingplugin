@@ -23,16 +23,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.FriendsChatManager;
+import net.runelite.api.FriendsChatMember;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.gameval.ItemID;
@@ -128,10 +128,6 @@ public class EntPathfinder
 	/** Used instead of {@code @Schedule}, which stalls while the client is minimised. */
 	@Inject
 	private ScheduledExecutorService executor;
-
-	@Inject
-	@Named("developerMode")
-	private boolean developerMode;
 
 	private volatile RelayClient relay;
 	private volatile boolean running;
@@ -328,27 +324,22 @@ public class EntPathfinder
 		}
 	}
 
-	// Developer mode only: {@code ::mockcall message}
-	@Subscribe
-	public void onCommandExecuted(CommandExecuted event)
-	{
-		if (!developerMode || !"mockcall".equals(event.getCommand()) || !isLoggedInOnForestryWorld())
-		{
-			return;
-		}
-
-		ChatMessage chatMessage = new ChatMessage();
-		chatMessage.setType(ChatMessageType.FRIENDSCHAT);
-		chatMessage.setName("mockcall");
-		chatMessage.setMessage(String.join(" ", event.getArguments()));
-
-		onChatMessage(chatMessage);
-	}
-
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
 		if (chatMessage.getType() != ChatMessageType.FRIENDSCHAT || !isLoggedInOnForestryWorld())
+		{
+			return;
+		}
+
+		FriendsChatManager friendsChatManager = client.getFriendsChatManager();
+		if (friendsChatManager == null)
+		{
+			return;
+		}
+
+		FriendsChatMember member = friendsChatManager.findByName(Text.removeTags(chatMessage.getName()));
+		if (member == null || member.getWorld() != FORESTRY_WORLD)
 		{
 			return;
 		}
@@ -394,28 +385,16 @@ public class EntPathfinder
 				lastCallTimes.put(caller, now);
 
 				String name = matcher.group("before") != null ? matcher.group("before") : matcher.group("after");
-				if (developerMode && "unnamed".equals(name))
-				{
-					createCall(null);
-				}
-				else
-				{
-					CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
-				}
+				CallLocationFinder.find(name).stream().findFirst().ifPresent(this::createCall);
 			}
 		}
 	}
 
 	private void createCall(CallLocation location)
 	{
-		// location is null only for the developer-mode "unnamed" test call,
-		// which uses fixed coordinates in the Kharazi Jungle
-		int x = location != null ? location.getCentreX() : 2840;
-		int y = location != null ? location.getCentreY() : 2910;
-
 		String json = String.format(
 			"{\"event_type\":\"%s\",\"world\":%d,\"x_coord\":%d,\"y_coord\":%d,\"plane\":0,\"discovered_time\":%d}",
-			ENT, FORESTRY_WORLD, x, y, serverNow());
+			ENT, FORESTRY_WORLD, location.getCentreX(), location.getCentreY(), serverNow());
 		Call call = gson.fromJson(json, Call.class);
 
 		// onChatMessage runs during a client script callback. Defer the call because
